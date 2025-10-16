@@ -18,10 +18,10 @@ class OrderItemController extends Controller
             'order_id' => 'required|exists:orders,id',
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|integer|min:1',
-            'price_per_unit' => 'required|numeric',
+            'price' => 'required|numeric',
         ]);
 
-        $validated['subtotal'] = $validated['quantity'] * $validated['price_per_unit'];
+        $validated['subtotal'] = $validated['quantity'] * $validated['price'];
 
         $orderItem = OrderItem::create($validated);
         return response()->json($orderItem, 201);

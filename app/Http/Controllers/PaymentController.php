@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Payment;
 use App\Models\Order;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Xendit\Configuration;
 use Xendit\Invoice\InvoiceApi;
 use Xendit\Invoice\CreateInvoiceRequest;
@@ -20,9 +21,6 @@ class PaymentController extends Controller
         $this->invoiceApi = new InvoiceApi();
     }
 
-    /**
-     * Create Payment & Generate Xendit Invoice
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -30,10 +28,8 @@ class PaymentController extends Controller
             'payment_method' => 'required|string|in:CREDIT_CARD,BCA,BNI,MANDIRI,PERMATA,BRI,OVO,DANA,LINKAJA,QRIS',
         ]);
 
-        // Get order data
         $order = Order::with('orderItems.product', 'user')->findOrFail($validated['order_id']);
 
-        // Check if order already has payment
         $existingPayment = Payment::where('order_id', $order->id)->first();
         if ($existingPayment) {
             return response()->json([
@@ -46,7 +42,6 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        // Check if order status is valid for payment
         if ($order->status !== 'PENDING_PAYMENT') {
             return response()->json([
                 'success' => false,
@@ -54,11 +49,9 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        // Generate unique external ID
         $externalId = 'INV-' . $order->order_number . '-' . time();
 
         try {
-            // Create invoice items for Xendit
             $items = [];
             foreach ($order->orderItems as $item) {
                 $items[] = [
@@ -69,13 +62,12 @@ class PaymentController extends Controller
                 ];
             }
 
-            // Prepare invoice request
             $invoiceData = new CreateInvoiceRequest([
                 'external_id' => $externalId,
                 'amount' => (float) $order->total_amount,
                 'payer_email' => $order->user->email,
                 'description' => "Payment for Order #{$order->order_number}",
-                'invoice_duration' => 86400, // 24 hours
+                'invoice_duration' => 86400, 
                 'currency' => 'IDR',
                 'items' => $items,
                 'success_redirect_url' => config('app.url') . '/payment/success',
@@ -83,10 +75,8 @@ class PaymentController extends Controller
                 'payment_methods' => [$validated['payment_method']]
             ]);
 
-            // Create invoice via Xendit API
             $invoice = $this->invoiceApi->createInvoice($invoiceData);
 
-            // Save payment record to database
             $payment = Payment::create([
                 'order_id' => $order->id,
                 'pg_transaction_id' => $invoice['id'],
@@ -96,7 +86,6 @@ class PaymentController extends Controller
                 'raw_response' => $invoice
             ]);
 
-            // Update order payment method
             $order->update([
                 'payment_method' => $validated['payment_method']
             ]);
@@ -125,9 +114,6 @@ class PaymentController extends Controller
         }
     }
 
-    /**
-     * Get all payments (with filter by user)
-     */
     public function index(Request $request)
     {
         $user = $request->user();
@@ -145,12 +131,9 @@ class PaymentController extends Controller
         ]);
     }
 
-    /**
-     * Check Payment Status by ID
-     */
     public function show($id)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         $payment = Payment::with('order')
             ->whereHas('order', function($query) use ($user) {
@@ -166,10 +149,7 @@ class PaymentController extends Controller
         }
 
         try {
-            // Get latest status from Xendit
             $invoice = $this->invoiceApi->getInvoiceById($payment->pg_transaction_id);
-
-            // Update payment status
             $payment->update([
                 'status' => $this->mapXenditStatus($invoice['status']),
                 'raw_response' => $invoice
@@ -199,75 +179,56 @@ class PaymentController extends Controller
         }
     }
 
-    /**
-     * Xendit Webhook Handler
-     */
     public function webhook(Request $request)
     {
-        // Verify webhook token
         $webhookToken = $request->header('x-callback-token');
         
         if ($webhookToken !== config('services.xendit.webhook_token')) {
-            \Log::warning('Invalid webhook token received');
+            Log::warning('Invalid webhook token received');
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid webhook token'
             ], 401);
         }
-
-        // Get webhook payload
         $payload = $request->all();
-
-        // Log webhook for debugging
-        \Log::info('Xendit Webhook Received', $payload);
+        Log::info('Xendit Webhook Received', $payload);
 
         try {
-            // Find payment by Xendit invoice ID
             $payment = Payment::where('pg_transaction_id', $payload['id'])->first();
 
             if (!$payment) {
-                \Log::warning('Payment not found for invoice: ' . $payload['id']);
+                Log::warning('Payment not found for invoice: ' . $payload['id']);
                 return response()->json(['success' => false], 404);
             }
 
-            // Map Xendit status to our status
             $paymentStatus = $this->mapXenditStatus($payload['status']);
 
-            // Update payment
             $payment->update([
                 'status' => $paymentStatus,
                 'paid_at' => $paymentStatus === 'SUCCESS' ? now() : null,
                 'raw_response' => $payload
             ]);
 
-            // Get related order
             $order = $payment->order;
-
-            // Update order status based on payment status
             if ($paymentStatus === 'SUCCESS') {
                 $order->update([
                     'status' => 'PAID'
                 ]);
 
-                \Log::info("Order #{$order->order_number} payment successful");
-
-                // You can add email notification here
-                // Mail::to($order->user->email)->send(new PaymentSuccessEmail($order));
+                Log::info("Order #{$order->order_number} payment successful");
             }
-
-            // Update order status if payment failed or expired
             if ($paymentStatus === 'FAILED' || $paymentStatus === 'EXPIRED') {
                 $order->update([
                     'status' => 'CANCELLED'
                 ]);
 
-                \Log::info("Order #{$order->order_number} payment {$paymentStatus}");
+                Log::info("Order #{$order->order_number} payment {$paymentStatus}");
             }
 
             return response()->json(['success' => true], 200);
 
         } catch (\Exception $e) {
-            \Log::error('Webhook Error: ' . $e->getMessage(), [
+            Log::error('Webhook Error: ' . $e->getMessage(), [
                 'payload' => $payload,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -278,10 +239,6 @@ class PaymentController extends Controller
             ], 500);
         }
     }
-
-    /**
-     * Map Xendit status to our internal status
-     */
     private function mapXenditStatus($xenditStatus)
     {
         $statusMap = [
@@ -295,12 +252,9 @@ class PaymentController extends Controller
         return $statusMap[$xenditStatus] ?? 'PENDING';
     }
 
-    /**
-     * Cancel payment (optional, if needed)
-     */
     public function destroy($id)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         $payment = Payment::with('order')
             ->whereHas('order', function($query) use ($user) {
@@ -323,7 +277,6 @@ class PaymentController extends Controller
         }
 
         try {
-            // Expire invoice in Xendit
             $this->invoiceApi->expireInvoice($payment->pg_transaction_id);
 
             $payment->update(['status' => 'EXPIRED']);

@@ -4,43 +4,44 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
-    /**
-     * GET /api/products
-     * Tampilkan semua produk
-     */
     public function index()
     {
-        $products = Product::all();
+        $products = Product::with('category')->get();
         return response()->json([
             'status' => 'success',
             'data' => $products
         ]);
     }
 
-    /**
-     * POST /api/products
-     * Tambah produk baru
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|unique:products,slug',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'image_url' => 'nullable|string'
+            'category_id' => 'required|exists:categories,id',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        if (empty($validated['slug'])) {
-            $validated['slug'] = Str::slug($validated['name']) . '-' . Str::random(5);
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('products', 'public');
+            $imageUrl = asset('storage/' . $path);
         }
 
-        $product = Product::create($validated);
+        $product = Product::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'price' => $validated['price'],
+            'stock' => $validated['stock'],
+            'category_id' => $validated['category_id'],
+            'image_url' => $imageUrl,
+        ]);
 
         return response()->json([
             'status' => 'success',
@@ -49,13 +50,9 @@ class ProductController extends Controller
         ], 201);
     }
 
-    /**
-     * GET /api/products/{id}
-     * Lihat detail produk
-     */
     public function show($id)
     {
-        $product = Product::find($id);
+        $product = Product::with('category')->find($id);
 
         if (!$product) {
             return response()->json([
@@ -70,10 +67,6 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * PUT /api/products/{id}
-     * Update data produk
-     */
     public function update(Request $request, $id)
     {
         $product = Product::find($id);
@@ -87,12 +80,22 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|nullable|string|unique:products,slug,' . $product->id,
             'description' => 'nullable|string',
             'price' => 'sometimes|required|numeric|min:0',
             'stock' => 'sometimes|required|integer|min:0',
-            'image_url' => 'nullable|string'
+            'category_id' => 'sometimes|required|exists:categories,id',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            if ($product->image_url) {
+                $oldPath = str_replace(asset('storage/') . '/', '', $product->image_url);
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            $path = $request->file('image')->store('products', 'public');
+            $validated['image_url'] = asset('storage/' . $path);
+        }
 
         $product->update($validated);
 
@@ -103,10 +106,6 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * DELETE /api/products/{id}
-     * Hapus produk
-     */
     public function destroy($id)
     {
         $product = Product::find($id);
@@ -116,6 +115,11 @@ class ProductController extends Controller
                 'status' => 'error',
                 'message' => 'Product not found'
             ], 404);
+        }
+
+        if ($product->image_url) {
+            $oldPath = str_replace(asset('storage/') . '/', '', $product->image_url);
+            Storage::disk('public')->delete($oldPath);
         }
 
         $product->delete();

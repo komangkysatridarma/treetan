@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductController; 
 use App\Http\Controllers\UserController; 
 use App\Http\Controllers\OrderController;
@@ -17,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class); 
     Route::apiResource('orders', OrderController::class);
     Route::apiResource('order-items', OrderItemController::class);
+    Route::apiResource('categories', CategoryController::class);
     
     Route::apiResource('payments', PaymentController::class)->only([
         'index',
