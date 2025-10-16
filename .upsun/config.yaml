@@ -1,0 +1,52 @@
+applications:
+  app:
+    type: "php:8.2"
+    runtime:
+      extensions:
+        - pdo_pgsql
+        - mbstring
+        - tokenizer
+        - xml
+        - ctype
+        - curl
+        - zip
+        
+    relationships:
+      database: "db:postgresql"
+      
+    web:
+      locations:
+        "/":
+          root: "public"
+          passthru: "/index.php"
+          index:
+            - index.php
+          scripts: true
+          allow: true
+        "/storage":
+          root: "storage/app/public"
+          expires: 1y
+          allow: true
+      
+    build:
+      flavor: "composer"
+      
+    hooks:
+      build: |
+        set -e
+        php artisan storage:link
+      deploy: |
+        set -e
+        php artisan migrate --force
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+
+routes:
+  "https://{default}/":
+    type: upstream
+    upstream: "app:http"
+
+services:
+  db:
+    type: postgresql:14
