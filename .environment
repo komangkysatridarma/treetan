@@ -1,5 +1,19 @@
-APP_ENV=production
-APP_KEY=base64:3k3MUaN/3TEL9a0hJYMS9+O7Dcb4ljQ4V7hA0xZf6dc=
-APP_DEBUG=true
-LOG_CHANNEL=stack
-DB_CONNECTION=pgsql
+# Upsun will automatically set DATABASE_URL from relationships
+# This file helps ensure Laravel uses the correct connection
+
+export APP_ENV=production
+export APP_DEBUG=false
+export DB_CONNECTION=pgsql
+
+# Parse DATABASE_URL from Upsun relationship
+if [ -n "$PLATFORM_RELATIONSHIPS" ]; then
+    export RELATIONSHIP=$(echo $PLATFORM_RELATIONSHIPS | base64 --decode | jq -r '.database[0]')
+    export DB_HOST=$(echo $RELATIONSHIP | jq -r '.host')
+    export DB_PORT=$(echo $RELATIONSHIP | jq -r '.port')
+    export DB_DATABASE=$(echo $RELATIONSHIP | jq -r '.path')
+    export DB_USERNAME=$(echo $RELATIONSHIP | jq -r '.username')
+    export DB_PASSWORD=$(echo $RELATIONSHIP | jq -r '.password')
+    
+    # Construct DATABASE_URL for Laravel
+    export DATABASE_URL="pgsql://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}"
+fi
