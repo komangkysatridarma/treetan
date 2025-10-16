@@ -1,6 +1,7 @@
 applications:
   app:
     type: "php:8.2"
+    
     runtime:
       extensions:
         - pdo_pgsql
@@ -10,9 +11,32 @@ applications:
         - ctype
         - curl
         - zip
+        - bcmath
+        - gd
         
     relationships:
       database: "db:postgresql"
+    
+    # Direktori yang perlu writable
+    mounts:
+      "storage/app":
+        source: storage
+        source_path: "app"
+      "storage/framework/cache":
+        source: storage
+        source_path: "framework/cache"
+      "storage/framework/sessions":
+        source: storage
+        source_path: "framework/sessions"
+      "storage/framework/views":
+        source: storage
+        source_path: "framework/views"
+      "storage/logs":
+        source: storage
+        source_path: "logs"
+      "bootstrap/cache":
+        source: storage
+        source_path: "bootstrap/cache"
       
     web:
       locations:
@@ -23,9 +47,13 @@ applications:
             - index.php
           scripts: true
           allow: true
+          rules:
+            \.(css|js|gif|jpe?g|png|svg|ico|woff2?)$:
+              allow: true
+              expires: 1y
         "/storage":
           root: "storage/app/public"
-          expires: 1y
+          scripts: false
           allow: true
       
     build:
@@ -34,19 +62,50 @@ applications:
     hooks:
       build: |
         set -e
-        php artisan storage:link
+        # Install dependencies
+        composer install --no-dev --optimize-autoloader --no-interaction
+        
       deploy: |
         set -e
-        php artisan migrate --force
+        # Create storage directories
+        mkdir -p storage/app/public
+        mkdir -p storage/framework/{cache,sessions,views}
+        mkdir -p storage/logs
+        mkdir -p bootstrap/cache
+        
+        # Set permissions
+        chmod -R 775 storage bootstrap/cache
+        
+        # Create storage link
+        php artisan storage:link --force
+        
+        # Run migrations
+        php artisan migrate --force --no-interaction
+        
+        # Clear and cache configs
+        php artisan config:clear
+        php artisan cache:clear
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
+    
+    variables:
+      env:
+        APP_ENV: 'production'
+        APP_DEBUG: 'false'
+        LOG_CHANNEL: 'stderr'
+        LOG_LEVEL: 'error'
+        SESSION_DRIVER: 'file'
+        CACHE_DRIVER: 'file'
 
 routes:
   "https://{default}/":
     type: upstream
     upstream: "app:http"
+    cache:
+      enabled: true
+      cookies: ['*']
 
 services:
   db:
-    type: postgresql:14
+    type: postgresql:16
