@@ -35,20 +35,6 @@ class UserController extends Controller
         return response()->json($user, 201);
     }
 
-    public function update(Request $request, $id)
-    {
-        $user = User::find($id);
-        if (!$user) return response()->json(['message' => 'User not found'], 404);
-
-        $user->update($request->except('password'));
-        if ($request->filled('password')) {
-            $user->password = Hash::make($request->password);
-            $user->save();
-        }
-
-        return response()->json($user);
-    }
-
     public function destroy($id)
     {
         $user = User::find($id);
