@@ -28,11 +28,6 @@ applications:
           root: "storage/app/public"
           expires: 1y
           allow: true
-          
-    disk: 512
-    mounts:
-      "/storage": "shared:files/storage"
-      "/bootstrap/cache": "shared:files/cache"
       
     build:
       flavor: "composer"
@@ -56,4 +51,3 @@ routes:
 services:
   db:
     type: postgresql:14
-    disk: 1024
