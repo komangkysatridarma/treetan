@@ -92,6 +92,7 @@ applications:
     variables:
       env:
         APP_ENV: 'production'
+        APP_KEY: 'base64:3k3MUaN/3TEL9a0hJYMS9+O7Dcb4ljQ4V7hA0xZf6dc='
         APP_DEBUG: 'false'
         LOG_CHANNEL: 'stderr'
         LOG_LEVEL: 'error'
