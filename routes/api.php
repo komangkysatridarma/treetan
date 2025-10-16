@@ -10,11 +10,18 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/webhook/xendit', [PaymentController::class, 'webhook']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('products', ProductController::class); 
     Route::apiResource('users', UserController::class); 
     Route::apiResource('orders', OrderController::class);
     Route::apiResource('order-items', OrderItemController::class);
-    Route::apiResource('payments', PaymentController::class);
+    
+    Route::apiResource('payments', PaymentController::class)->only([
+        'index',
+        'store',
+        'show',
+        'destroy'
+    ]);
 });
