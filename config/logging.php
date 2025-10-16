@@ -51,12 +51,21 @@ return [
     */
 
     'channels' => [
+    'stack' => [
+        'driver' => 'stack',
+        'channels' => explode(',', env('LOG_STACK', 'stderr')),
+        'ignore_exceptions' => false,
+    ],
 
-        'stack' => [
-            'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+    'stderr' => [
+        'driver' => 'monolog',
+        'level' => env('LOG_LEVEL', 'debug'),
+        'handler' => StreamHandler::class,
+        'formatter' => env('LOG_STDERR_FORMATTER'),
+        'with' => [
+            'stream' => 'php://stderr',
         ],
+    ],
 
         'single' => [
             'driver' => 'single',
