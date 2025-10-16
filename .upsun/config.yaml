@@ -4,7 +4,6 @@ applications:
     runtime:
       extensions:
         - pdo_pgsql
-        - openssl
         - mbstring
         - tokenizer
         - xml
