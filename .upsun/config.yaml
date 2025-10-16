@@ -19,24 +19,12 @@ applications:
     
     # Direktori yang perlu writable
     mounts:
-      "storage/app":
+      "storage":
         source: storage
-        source_path: "app"
-      "storage/framework/cache":
-        source: storage
-        source_path: "framework/cache"
-      "storage/framework/sessions":
-        source: storage
-        source_path: "framework/sessions"
-      "storage/framework/views":
-        source: storage
-        source_path: "framework/views"
-      "storage/logs":
-        source: storage
-        source_path: "logs"
+        source_path: "storage"
       "bootstrap/cache":
         source: storage
-        source_path: "bootstrap/cache"
+        source_path: "bootstrap_cache"
       
     web:
       locations:
@@ -68,33 +56,32 @@ applications:
       deploy: |
         set -e
         
-        # Source environment variables
-        if [ -f .environment ]; then
-            source .environment
-        fi
-        
-        # Create storage directories
+        # Create complete storage structure
         mkdir -p storage/app/public
-        mkdir -p storage/framework/{cache,sessions,views}
+        mkdir -p storage/framework/cache/data
+        mkdir -p storage/framework/sessions
+        mkdir -p storage/framework/testing
+        mkdir -p storage/framework/views
         mkdir -p storage/logs
         mkdir -p bootstrap/cache
         
-        # Set permissions
-        chmod -R 775 storage bootstrap/cache
+        # Set proper permissions
+        chmod -R 775 storage
+        chmod -R 775 bootstrap/cache
         
-        # Create storage link
-        php artisan storage:link --force
+        # Create symbolic link for public storage
+        php artisan storage:link --force || true
         
-        # IMPORTANT: Clear ALL caches before running migrations
-        php artisan config:clear
-        php artisan cache:clear
-        php artisan route:clear
-        php artisan view:clear
+        # Clear all caches first
+        php artisan config:clear || true
+        php artisan cache:clear || true
+        php artisan route:clear || true
+        php artisan view:clear || true
         
         # Run migrations
         php artisan migrate --force --no-interaction
         
-        # Cache configs AFTER migrations
+        # Cache configs after migrations
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
@@ -109,6 +96,7 @@ applications:
         SESSION_DRIVER: 'file'
         CACHE_DRIVER: 'file'
         DB_CONNECTION: 'pgsql'
+        VIEW_COMPILED_PATH: '/app/storage/framework/views'
 
 routes:
   "https://{default}/":
