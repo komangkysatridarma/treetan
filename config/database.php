@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -86,15 +86,30 @@ return [
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', parse_url(env('DATABASE_URL'), PHP_URL_HOST)),
-            'port' => env('DB_PORT', parse_url(env('DATABASE_URL'), PHP_URL_PORT)),
-            'database' => env('DB_DATABASE', ltrim(parse_url(env('DATABASE_URL'), PHP_URL_PATH), '/')),
-            'username' => env('DB_USERNAME', parse_url(env('DATABASE_URL'), PHP_URL_USER)),
-            'password' => env('DB_PASSWORD', parse_url(env('DATABASE_URL'), PHP_URL_PASS)),
+            'host' => env('DB_HOST', function() {
+                $url = env('DATABASE_URL');
+                return $url ? parse_url($url, PHP_URL_HOST) : '127.0.0.1';
+            }),
+            'port' => env('DB_PORT', function() {
+                $url = env('DATABASE_URL');
+                return $url ? parse_url($url, PHP_URL_PORT) : '5432';
+            }),
+            'database' => env('DB_DATABASE', function() {
+                $url = env('DATABASE_URL');
+                return $url ? ltrim(parse_url($url, PHP_URL_PATH), '/') : 'forge';
+            }),
+            'username' => env('DB_USERNAME', function() {
+                $url = env('DATABASE_URL');
+                return $url ? parse_url($url, PHP_URL_USER) : 'forge';
+            }),
+            'password' => env('DB_PASSWORD', function() {
+                $url = env('DATABASE_URL');
+                return $url ? parse_url($url, PHP_URL_PASS) : '';
+            }),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
-            'schema' => 'public',
+            'search_path' => 'public',
             'sslmode' => 'prefer',
         ],
 

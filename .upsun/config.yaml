@@ -67,6 +67,12 @@ applications:
         
       deploy: |
         set -e
+        
+        # Source environment variables
+        if [ -f .environment ]; then
+            source .environment
+        fi
+        
         # Create storage directories
         mkdir -p storage/app/public
         mkdir -p storage/framework/{cache,sessions,views}
@@ -79,12 +85,16 @@ applications:
         # Create storage link
         php artisan storage:link --force
         
+        # IMPORTANT: Clear ALL caches before running migrations
+        php artisan config:clear
+        php artisan cache:clear
+        php artisan route:clear
+        php artisan view:clear
+        
         # Run migrations
         php artisan migrate --force --no-interaction
         
-        # Clear and cache configs
-        php artisan config:clear
-        php artisan cache:clear
+        # Cache configs AFTER migrations
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
@@ -98,6 +108,7 @@ applications:
         LOG_LEVEL: 'error'
         SESSION_DRIVER: 'file'
         CACHE_DRIVER: 'file'
+        DB_CONNECTION: 'pgsql'
 
 routes:
   "https://{default}/":
